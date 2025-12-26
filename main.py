@@ -1,70 +1,73 @@
 #!/usr/bin/env python3
 """
-Phone Agent CLI - AI-powered phone automation.
+Phone Agent CLI - AI驱动的手机自动化命令行工具
 
-Usage:
-    python main.py [OPTIONS]
+用法:
+    python main.py [选项]
 
-Environment Variables:
-    PHONE_AGENT_BASE_URL: Model API base URL (default: http://localhost:8000/v1)
-    PHONE_AGENT_MODEL: Model name (default: autoglm-phone-9b)
-    PHONE_AGENT_API_KEY: API key for model authentication (default: EMPTY)
-    PHONE_AGENT_MAX_STEPS: Maximum steps per task (default: 100)
-    PHONE_AGENT_DEVICE_ID: ADB device ID for multi-device setups
+环境变量:
+    PHONE_AGENT_BASE_URL: 模型API基础URL (默认: http://localhost:8000/v1)
+    PHONE_AGENT_MODEL: 模型名称 (默认: autoglm-phone-9b)
+    PHONE_AGENT_API_KEY: 模型认证的API密钥 (默认: EMPTY)
+    PHONE_AGENT_MAX_STEPS: 每个任务的最大步骤数 (默认: 100)
+    PHONE_AGENT_DEVICE_ID: 多设备设置时的ADB设备ID
 """
 
-import argparse
-import os
-import shutil
-import subprocess
-import sys
-from urllib.parse import urlparse
+# 标准库导入
+import argparse  # 命令行参数解析
+import os  # 操作系统接口
+import shutil  # 高级文件操作
+import subprocess  # 子进程管理
+import sys  # 系统特定参数和函数
+from urllib.parse import urlparse  # URL解析工具
 
-from openai import OpenAI
+# 第三方库导入
+from openai import OpenAI  # OpenAI API客户端
 
-from phone_agent import PhoneAgent
-from phone_agent.agent import AgentConfig
-from phone_agent.agent_ios import IOSAgentConfig, IOSPhoneAgent
-from phone_agent.config.apps import list_supported_apps
-from phone_agent.config.apps_harmonyos import list_supported_apps as list_harmonyos_apps
-from phone_agent.config.apps_ios import list_supported_apps as list_ios_apps
-from phone_agent.device_factory import DeviceType, get_device_factory, set_device_type
-from phone_agent.model import ModelConfig
-from phone_agent.xctest import XCTestConnection
-from phone_agent.xctest import list_devices as list_ios_devices
+# Phone Agent核心模块导入
+from phone_agent import PhoneAgent  # Android/HarmonyOS手机代理
+from phone_agent.agent import AgentConfig  # Android/HarmonyOS代理配置
+from phone_agent.agent_ios import IOSAgentConfig, IOSPhoneAgent  # iOS代理和配置
+from phone_agent.config.apps import list_supported_apps  # Android支持的应用列表
+from phone_agent.config.apps_harmonyos import list_supported_apps as list_harmonyos_apps  # HarmonyOS支持的应用列表
+from phone_agent.config.apps_ios import list_supported_apps as list_ios_apps  # iOS支持的应用列表
+from phone_agent.device_factory import DeviceType, get_device_factory, set_device_type  # 设备工厂和类型
+from phone_agent.model import ModelConfig  # 模型配置
+from phone_agent.xctest import XCTestConnection  # iOS XCTest连接
+from phone_agent.xctest import list_devices as list_ios_devices  # iOS设备列表功能
 
 
 def check_system_requirements(
     device_type: DeviceType = DeviceType.ADB, wda_url: str = "http://localhost:8100"
 ) -> bool:
     """
-    Check system requirements before running the agent.
+    在运行代理之前检查系统要求。
 
-    Checks:
-    1. ADB/HDC/iOS tools installed
-    2. At least one device connected
-    3. ADB Keyboard installed on the device (for ADB only)
-    4. WebDriverAgent running (for iOS only)
+    检查项:
+    1. ADB/HDC/iOS工具已安装
+    2. 至少连接了一台设备
+    3. ADB Keyboard已安装在设备上（仅限ADB）
+    4. WebDriverAgent正在运行（仅限iOS）
 
-    Args:
-        device_type: Type of device tool (ADB, HDC, or IOS).
-        wda_url: WebDriverAgent URL (for iOS only).
+    参数:
+        device_type: 设备工具类型（ADB、HDC或IOS）
+        wda_url: WebDriverAgent URL（仅限iOS）
 
-    Returns:
-        True if all checks pass, False otherwise.
+    返回:
+        如果所有检查都通过则返回True，否则返回False
     """
-    print("🔍 Checking system requirements...")
+    print("🔍 正在检查系统要求...")
     print("-" * 50)
 
-    all_passed = True
+    all_passed = True  # 标记所有检查是否通过
 
-    # Determine tool name and command
+    # 根据设备类型确定工具名称和命令
     if device_type == DeviceType.IOS:
-        tool_name = "libimobiledevice"
-        tool_cmd = "idevice_id"
+        tool_name = "libimobiledevice"  # iOS设备工具
+        tool_cmd = "idevice_id"  # iOS设备ID命令
     else:
-        tool_name = "ADB" if device_type == DeviceType.ADB else "HDC"
-        tool_cmd = "adb" if device_type == DeviceType.ADB else "hdc"
+        tool_name = "ADB" if device_type == DeviceType.ADB else "HDC"  # Android或HarmonyOS工具
+        tool_cmd = "adb" if device_type == DeviceType.ADB else "hdc"  # 对应的命令
 
     # Check 1: Tool installed
     print(f"1. Checking {tool_name} installation...", end=" ")
